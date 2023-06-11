@@ -49,7 +49,12 @@ private
 
 	type Tar_Entry is tagged limited record
 		S:                    State        := Before_Header;
-		USTAR:                USTAR_Header := (others => 0);
+		USTAR:                USTAR_Header := (
+			-- magic value
+			257 => Character'Pos('u'), 258 => Character'Pos('s'),
+			259 => Character'Pos('t'), 260 => Character'Pos('a'),
+			261 => Character'Pos('r'), others => 0
+		);
 		Force_USTAR:          Boolean      := False;
 		PAX:                  Map          := Empty_Map;
 		Running_Content_Size: U64          := 0;
