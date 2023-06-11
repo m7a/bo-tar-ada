@@ -417,12 +417,12 @@ package body Tar.Writer is
 	end Get_Name;
 
 	function C_String_To_Ada(S: in Stream_Element_Array) return String is
-		SS: String(Integer(S'First) .. Integer(S'Last));
+		SS: String(1 .. S'Length);
 		for SS'Address use S'Address;
 	begin
 		for I in S'Range loop
 			if S(I) = 0 then
-				return SS(Integer(S'First) .. Integer(I - 1));
+				return SS(1 .. Integer(1 + I - S'First));
 			end if;
 		end loop;
 		return SS;
