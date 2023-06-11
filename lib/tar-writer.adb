@@ -125,22 +125,8 @@ package body Tar.Writer is
 		Assert(not Overflow); -- otherwise type system error/program bug
 	end Set_Access_Mode;
 
-	-- To enhance compatibility with tar.rs library we attempt to write the
-	-- number as a 0-terminated string and only if it does not fit expand to
-	-- using all of the bytes in the field. Previous versions used all of
-	-- the bytes all of the time (which may also be valid according to the
-	-- standard?)
+	-- The standard requires that these fields be 0-terminated...
 	function To_Octal(Val: in U64; Length: in Stream_Element_Offset;
-			Overflow: out Boolean) return Stream_Element_Array is
-		RVI: constant Stream_Element_Array := To_Octal_Inner(Val,
-							Length - 1, Overflow);
-		A0: constant Stream_Element_Array(0 .. 0) := (others => 0);
-	begin
-		return (if Overflow then To_Octal_Inner(Val, Length, Overflow)
-			else RVI & A0);
-	end To_Octal;
-
-	function To_Octal_Inner(Val: in U64; Length: in Stream_Element_Offset;
 			Overflow: out Boolean) return Stream_Element_Array is
 		Tbl: constant Stream_Element_Array(0 .. 7) :=
 					(Stream_Element(Character'Pos('0')),
@@ -152,11 +138,12 @@ package body Tar.Writer is
 					 Stream_Element(Character'Pos('6')),
 					 Stream_Element(Character'Pos('7')));
 		Edit: U64 := Val;
-		Pos:  Stream_Element_Offset := Length - 1;
-		RV:   Stream_Element_Array(0 .. Length - 1)
-							:= (others => Tbl(0));
+		Pos:  Stream_Element_Offset := Length - 2;
+		RV:   Stream_Element_Array(0 .. Length - 1) :=
+							(others => Tbl(0));
 	begin
 		Overflow := False;
+		RV(RV'Last) := 0;
 		while Pos > 0 and Edit /= 0 loop
 			RV(Pos) := Tbl(Stream_Element_Offset(Edit and 7));
 			Pos     := Pos - 1;
@@ -166,7 +153,7 @@ package body Tar.Writer is
 			Overflow := True;
 		end if;
 		return RV;
-	end To_Octal_Inner;
+	end To_Octal;
 
 	procedure Set_Size(Ent: in out Tar_Entry; SZ: in U64) is
 	begin

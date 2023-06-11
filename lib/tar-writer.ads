@@ -74,8 +74,6 @@ private
 	procedure Set_Type_Raw(Ent: in out Tar_Entry; Raw: in Character);
 	function To_Octal(Val: in U64; Length: in Stream_Element_Offset;
 			Overflow: out Boolean) return Stream_Element_Array;
-	function To_Octal_Inner(Val: in U64; Length: in Stream_Element_Offset;
-			Overflow: out Boolean) return Stream_Element_Array;
 	procedure Add_Numeric_Field(Ent: in out Tar_Entry; Val: in U64;
 			Offset: in Stream_Element_Offset;
 			Length: in Stream_Element_Offset; Name: in String);
