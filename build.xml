@@ -15,7 +15,7 @@
 <property name="mdpc.file.install">
 lib/libtarada.so /usr/lib/x86_64-linux-gnu
 lib/tar-writer.ali /usr/lib/x86_64-linux-gnu/ada/adalib/tar
-lib/tar-writer.ads /usr/lib/x86_64-linux-gnu/ada/adalib/tar
+lib/tar-writer.ads /usr/share/ada/adainclude/tar
 lib/tar.ali /usr/lib/x86_64-linux-gnu/ada/adalib/tar
 lib/tar.ads /usr/share/ada/adainclude/tar
 </property>
