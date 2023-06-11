@@ -1,3 +1,9 @@
+libtar-ada-dev (1.0.4) stable; urgency=medium
+
+  * Refine TAR format: Use binary 0 as end marker when possible.
+
+ -- Ma_Sys.ma Linux-Fan <info@masysma.net>  Sun, 11 Jun 2023 17:20:38 +0200
+
 libtar-ada-dev (1.0.3) stable; urgency=medium
 
   * Refine TAR format: Add version, permit longer modes.
