@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="build">
+<property name="masysma.target" value="tarada"/> 
+<target name="build">
+	<chmod file="tar.ali"        perm="+w"/>
+	<chmod file="tar-writer.ali" perm="+w"/>
+	<exec executable="gnatmake" failonerror="true">
+		<arg value="-Wall"/>
+		<arg value="-Werror"/>
+		<arg value="-O3"/>
+		<arg value="-fPIC"/>
+		<arg value="-fstack-protector-strong"/>
+		<arg value="-c"/>
+		<arg value="tar-writer.adb"/>
+	</exec>
+	<exec executable="gcc" failonerror="true">
+		<arg value="-shared"/>
+		<arg value="-o"/>
+		<arg value="lib${masysma.target}.so"/>
+		<arg value="tar.o"/>
+		<arg value="tar-writer.o"/>
+	</exec>
+	<chmod file="tar.ali"        perm="-w"/>
+	<chmod file="tar-writer.ali" perm="-w"/>
+	<delete file="tar.o"/>
+	<delete file="tar-writer.o"/>
+</target>
+<target name="clean"/>
+<target name="dist-clean">
+	<delete file="lib${masysma.target}.so"/>
+	<delete file="tar.ali"/>
+	<delete file="tar-writer.ali"/>
+</target>
+</project>
