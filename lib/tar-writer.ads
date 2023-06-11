@@ -53,7 +53,10 @@ private
 			-- magic value
 			257 => Character'Pos('u'), 258 => Character'Pos('s'),
 			259 => Character'Pos('t'), 260 => Character'Pos('a'),
-			261 => Character'Pos('r'), others => 0
+			261 => Character'Pos('r'),
+			-- version
+			263 => Character'Pos('0'),
+			others => 0
 		);
 		Force_USTAR:          Boolean      := False;
 		PAX:                  Map          := Empty_Map;

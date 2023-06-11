@@ -1,3 +1,9 @@
+libtar-ada-dev (1.0.3) stable; urgency=medium
+
+  * Refine TAR format: Add version, permit longer modes.
+
+ -- Ma_Sys.ma Linux-Fan <info@masysma.net>  Sun, 11 Jun 2023 16:37:36 +0200
+
 libtar-ada-dev (1.0.2) stable; urgency=medium
 
   * Fix tar format by adding missing POSIX ustar magic string.
