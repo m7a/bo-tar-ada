@@ -138,8 +138,8 @@ package body Tar.Writer is
 					 Stream_Element(Character'Pos('6')),
 					 Stream_Element(Character'Pos('7')));
 		Edit: U64 := Val;
-		Pos:  Stream_Element_Offset := Length - 2;
-		RV:   Stream_Element_Array(0 .. Length - 1) :=
+		Pos:  Stream_Element_Offset := Length - 1;
+		RV:   Stream_Element_Array(1 .. Length) :=
 							(others => Tbl(0));
 	begin
 		Overflow := False;
@@ -379,11 +379,11 @@ package body Tar.Writer is
 							Name: in String) is
 		Use_Len: constant Integer := Integer'Min(Name'Length,
 					Integer(USTAR_Length_Name));
-		Lim_Rev: String(0 .. Use_Len - 1);
+		Lim_Rev: String(1 .. Use_Len);
 		Assoc_Char: Character;
 	begin
 		for I in Lim_Rev'Range loop
-			Assoc_Char := Name(Name'Last - Integer(I));
+			Assoc_Char := Name(Name'Last - Integer(I - 1));
 			Lim_Rev(I) := (if Assoc_Char = '/'
 						then '.' else Assoc_Char);
 		end loop;
