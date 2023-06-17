@@ -225,8 +225,9 @@ package body Tar.Writer is
 	procedure Set_Owner(Ent: in out Tar_Entry; U_Name, G_Name: in String) is
 	begin
 		Assert(Ent.S = Before_Header);
-		Ent.Add_String_Field(U_Name, 265, 32, "uname");
-		Ent.Add_String_Field(G_Name, 297, 32, "gname");
+		-- fields must be 0-terminated, thus only 31 bytes for value!
+		Ent.Add_String_Field(U_Name, 265, 31, "uname");
+		Ent.Add_String_Field(G_Name, 297, 31, "gname");
 	end Set_Owner;
 
 	procedure Add_String_Field(Ent: in out Tar_Entry; Val: in String;
@@ -236,7 +237,18 @@ package body Tar.Writer is
 		if Val'Length <= Length then
 			Ent.Add_USTAR_String(Val, Offset, Length); 
 		else
-			Ent.PAX.Include(Name, Val);
+			-- Add trunctaed value wich is recommended per POSIX
+			Ent.Add_USTAR_String(Val(Val'First ..
+				Val'First + Length - 1), Offset, Length);
+			-- It is debatable whether one should raise an exception
+			-- here. On the one hand side, the spec explicitly
+			-- says “truncate” in case it does not fit the field
+			-- width. On the other hand side, this drops some info.
+			-- Let's err on the side of not crashing the calling
+			-- application for now.
+			if not Ent.Force_USTAR then
+				Ent.PAX.Include(Name, Val);
+			end if;
 		end if;
 	end Add_String_Field;
 
@@ -348,6 +360,13 @@ package body Tar.Writer is
 		Line_Lengths: Length_Array(1 .. Integer(Ent.PAX.Length));
 		I: Integer := Line_Lengths'First;
 
+		-- TODO x LET'S TRY TO COMPUTE THE BOUNDS HERE
+		-- In the general case this would require a loop until fixpoint
+		-- iteration. It is highly unlikely that metadata exceeds the
+		-- limit where this would become relevant, though. Hence this
+		-- implementation opts for the not all-correct but
+		-- always-terminating dual-pass scheme using the logarithm to
+		-- determine the length that the number will have.
 		procedure Count_Element(Pos: in Cursor) is
 			-- space + key + space + value + newline
 			A_Priori_Length:     constant U64 := 1 + Key(Pos)'Length

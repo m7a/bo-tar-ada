@@ -4,7 +4,7 @@ package Tar is
 
 	subtype U64 is Interfaces.Unsigned_64;
 
-	type Dev_Node    is mod 10 ** 8;
+	type Dev_Node    is mod 10 ** 7;
 	type Access_Mode is mod  8 ** 7;
 
 	type Tar_Entry_Type is
