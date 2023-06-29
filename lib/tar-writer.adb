@@ -237,9 +237,10 @@ package body Tar.Writer is
 		if Val'Length <= Length then
 			Ent.Add_USTAR_String(Val, Offset, Length); 
 		else
-			-- Add trunctaed value wich is recommended per POSIX
+			-- Add trunctaed value which is recommended per POSIX
 			Ent.Add_USTAR_String(Val(Val'First ..
-				Val'First + Length - 1), Offset, Length);
+					Val'First + Integer(Length - 1)),
+					Offset, Length);
 			-- It is debatable whether one should raise an exception
 			-- here. On the one hand side, the spec explicitly
 			-- says “truncate” in case it does not fit the field

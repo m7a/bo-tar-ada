@@ -1,3 +1,9 @@
+libtar-ada-dev (1.0.8) stable; urgency=medium
+
+  * Rebuild for Debian 12
+
+ -- Ma_Sys.ma Linux-Fan <info@masysma.net>  Thu, 29 Jun 2023 20:29:58 +0200
+
 libtar-ada-dev (1.0.7) stable; urgency=medium
 
   * Fix To_Octal, fix String start offset index
