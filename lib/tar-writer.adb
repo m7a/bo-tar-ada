@@ -166,8 +166,8 @@ package body Tar.Writer is
 			Length: in Stream_Element_Offset; Name: in String) is
 		Overflow: Boolean;
 	begin
-		Ent.USTAR(Offset .. Offset + Length - 1) := To_Octal(Val, Length,
-								Overflow);
+		Ent.USTAR(Offset .. Offset + Length - 1) := To_Octal(Val,
+							Length, Overflow);
 		if Overflow then
 			if Ent.Force_USTAR then
 				raise Not_Supported_In_Format with
