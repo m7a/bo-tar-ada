@@ -18,6 +18,7 @@ lib/tar-writer.ali /usr/lib/x86_64-linux-gnu/ada/adalib/tar
 lib/tar-writer.ads /usr/share/ada/adainclude/tar
 lib/tar.ali /usr/lib/x86_64-linux-gnu/ada/adalib/tar
 lib/tar.ads /usr/share/ada/adainclude/tar
+tool_taradaarc/taradaarc /usr/bin
 </property>
 
 <!-- CI INTEGRATION -->

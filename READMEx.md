@@ -100,9 +100,20 @@ bo-tar-ada/
    │    ├── tar.ads
    │    └── build.xml
    │
+   ├── tool_taradaarc/                Minimal example of an “archiver”
+   │    ├── build.xml                 program that can be used to create TAR
+   │    ├── metadata.adb              archives out of file system trees. It
+   │    ├── metadata.ads              demonstrates the usage of the library for
+   │    ├── pstat.c                   a non-trivial use-case.
+   │    └── taradaarc.adb
+   │
+   ├── tool_taradahello/
+   │    ├── build.xml
+   │    └── taradahello.adb           “Hello World” example using this library
+   │
    ├── README.md                      This file
    ├── debian-changelog.txt           Changelog information for .deb build
-   └── build.xml                      Top-level Build instructions
+   └── build.xml                      Top-level build instructions
 ~~~
 
 Example Program
@@ -149,6 +160,11 @@ end TarAdaHello;
 The program creates a tar archive with a single file entry (no directory) and
 name `hello.txt` with the traditional content of `Hello, world.` followed by
 a newline. The tar data is directly sent to the standard output in this example.
+
+If you are intrested in a more complex example, check the files under
+`tool_taradaarc` especially `tool_taradaarc/taradaarc.adb` which implements
+an archiver that traverses file system trees and then writes the data to
+stdout as .tar files.
 
 Using the Library
 =================

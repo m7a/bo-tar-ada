@@ -201,7 +201,7 @@ package body Tar.Writer is
 		Edit:   U64     := Num;
 		Result: Natural := 1;
 	begin
-		while Edit > 10 loop
+		while Edit >= 10 loop
 			Result := Result + 1;
 			Edit   := Edit / 10;
 		end loop;
@@ -341,7 +341,7 @@ package body Tar.Writer is
 		procedure Serialize_Element(Pos: in Cursor) is
 			Line: constant String :=
 				U64_To_Str(Line_Lengths(I)) & ' ' &
-				Key(Pos) & ' ' & Element(Pos) & ASCII.LF;
+				Key(Pos) & '=' & Element(Pos) & ASCII.LF;
 			Line_Raw: Stream_Element_Array(1 .. Line'Length);
 			for Line_Raw'Address use Line'Address;
 		begin
@@ -355,21 +355,59 @@ package body Tar.Writer is
 		return Raw_Contents;
 	end Serialize_PAX_Extended_Header_Data;
 
+	-- PAX format requires that the size is given including the space the
+	-- size information itself takes up. Since numbers can become longer
+	-- when the size is larger, there can be cases where the number needs
+	-- to become bigger to account for its own increased length.
+	--
+	-- E.g. if the current length is 98 then we know that we need two
+	-- digits to represent the size DLOG10(98) = 2 so we need to specify
+	-- size 98 + 2 = 100 but that updated number does not fit the storage of
+	-- 100 bytes since we need DLOG(100) = 3 + 98 = 101 bytes to store this
+	-- info.
+	--
+	-- There are multiple approaches to solve this. My idea is as follows:
+	-- I compute an A_Priori_Length which is the length except for size
+	-- info (e.g. 98). Then an A_Priori_Add which is the length needed to
+	-- representd that size i.e. A_Priori_Add = DLOG10(A_Priori_Length) e.g.
+	-- = 2. Then I find out if I can use that size as-is by computing
+	-- Intermediate_Add = DLOG10(A_Priori_Length + A_Priori_Add) =
+	-- (e.g. = DLOG10(98 + 2) = 3). Now if this is unchanged to before it
+	-- means the number fits within the precumputed space. If not, the space
+	-- needs to be exactly 1 more.
+	--
+	-- The idea behind this "excatly 1 more" is as follows:
+	--
+	-- Say the order of magnitude of the size stays same, then the space
+	-- allocated for it is sufficient and no increase in space is needed.
+	-- 
+	-- Say the order of magnitude of the size increases, then in this case
+	-- it can only increase by 1.
+	--
+	-- Consider that increasing the order of magnitude of a number X by more
+	-- than two by means of addition requires adding another number Y that
+	-- is larger than X because for all X > 1 we have that
+	-- DLOG10(2 * X) <= DLOG10(X) + 1 and by that for all natural X > 1 and
+	-- Y < X we have that DLOG10(X + Y) <= DLOG10(X) + 1.
+	--
+	-- Now for the sake of contradiction assume that it would be possible
+	-- for updated size information to require more than one byte of
+	-- additional storage. Then necessarily this size must have increased
+	-- by more than one order of magnitude as the actual contents stay
+	-- unchanged. Then per the preceding paragraph this would mean that
+	-- the size information is actually larger than the data it describes.
+	-- But for all X > 1 we know that DLOG10(X) <= X which means that the
+	-- size information can never exceed the length of the data it
+	-- describes. This contradicts the assumption of having the size
+	-- increase by more than one order of magnitude.
 	function Compute_PAX_Lengths(Ent: in Tar_Entry;
 					Total_Length: out Stream_Element_Offset)
 					return Length_Array is
 		Line_Lengths: Length_Array(1 .. Integer(Ent.PAX.Length));
 		I: Integer := Line_Lengths'First;
 
-		-- TODO x LET'S TRY TO COMPUTE THE BOUNDS HERE
-		-- In the general case this would require a loop until fixpoint
-		-- iteration. It is highly unlikely that metadata exceeds the
-		-- limit where this would become relevant, though. Hence this
-		-- implementation opts for the not all-correct but
-		-- always-terminating dual-pass scheme using the logarithm to
-		-- determine the length that the number will have.
 		procedure Count_Element(Pos: in Cursor) is
-			-- space + key + space + value + newline
+			-- space + key + equals + value + newline
 			A_Priori_Length:     constant U64 := 1 + Key(Pos)'Length
 						+ 1 + Element(Pos)'Length + 1;
 			A_Priori_Add:        constant U64 := U64(DLOG10(
