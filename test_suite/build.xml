@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project default="build">
+
+<property name="masysma.target" value="tartest"/> 
+<dirname property="local.root" file="${ant.file}"/>
+<property name="masysma.ada.compile.1" value="-I${local.root}/../lib"/>
+<property name="masysma.ada.compile.8" value="-largs"/>
+<property name="masysma.ada.compile.9" value="-ltarada"/>
+
+<target name="run" depends="build">
+	<exec executable="${local.root}/tartest">
+		<env key="LD_LIBRARY_PATH" value="${local.root}/../lib"/>
+	</exec>
+</target>
+
+<target name="cov">
+	<exec executable="gnatmake" failonerror="true">
+		<arg value="-Wall"/>
+		<arg value="-f"/>
+		<arg value="${local.root}/../lib/tar-writer.adb"/>
+		<arg value="${local.root}/tartest.adb"/>
+		<arg value="-cargs"/>
+		<arg value="-fprofile-arcs"/>
+		<arg value="-ftest-coverage"/>
+		<arg value="-largs"/>
+		<arg value="-fprofile-arcs"/>
+	</exec>
+	<copy file="${local.root}/../lib/tar-writer.adb" tofile="tar-writer.adb"/>
+	<copy file="${local.root}/tartest.adb" tofile="b~tartest.adb"/>
+	<exec executable="${local.root}/tartest"/>
+	<exec executable="gcov">
+		<arg value="tar-writer.adb"/>
+		<arg value="tartest.adb"/>
+	</exec>
+	<exec executable="lcov">
+		<arg value="-c"/>
+		<arg value="-d"/>
+		<arg value="."/>
+		<arg value="-o"/>
+		<arg value="cov.info"/>
+	</exec>
+	<mkdir dir="${local.root}/../cov"/>
+	<exec executable="genhtml">
+		<arg value="--output-directory"/>
+		<arg value="${local.root}/../cov"/>
+		<arg value="cov.info"/>
+	</exec>
+	<delete>
+		<fileset dir="${local.root}" includes="cov.info"/>
+		<fileset dir="${local.root}" includes="tar-writer.*"/>
+		<fileset dir="${local.root}" includes="b~tar*"/>
+		<fileset dir="${local.root}" includes="tartest.adb.*"/>
+		<fileset dir="${local.root}" includes="tartest.ali"/>
+		<fileset dir="${local.root}" includes="tartest.g*"/>
+		<fileset dir="${local.root}" includes="tartest.o"/>
+		<fileset dir="${local.root}" includes="tartest"/>
+	</delete>
+</target>
+
+<!-- CONSTANT TPL IMPORT -->
+<property environment="env"/>
+<condition property="masysma.internal.includepath.rel" value="${env.MDVL_CI_PHOENIX_ROOT}" else="../.."><isset property="env.MDVL_CI_PHOENIX_ROOT"/></condition>
+<property name="masysma.internal.includepath" location="${masysma.internal.includepath.rel}"/>
+<property name="masysma.internal.loadpath" value="${masysma.internal.includepath}/co-build/ant-build-template.xml"/>
+<condition property="masysma.internal.load" value="file://${masysma.internal.loadpath}" else="https://raw.githubusercontent.com/m7a/co-build/master/ant-build-template.xml"><resourceexists><file file="${masysma.internal.loadpath}"/></resourceexists></condition>
+<import><url url="${masysma.internal.load}"/></import>
+
+</project>
