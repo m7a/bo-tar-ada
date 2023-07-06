@@ -47,8 +47,11 @@
 	</exec>
 	<delete>
 		<fileset dir="${local.root}" includes="cov.info"/>
+		<fileset dir="${local.root}" includes="tar.*"/>
 		<fileset dir="${local.root}" includes="tar-writer.*"/>
 		<fileset dir="${local.root}" includes="b~tar*"/>
+		<fileset dir="${local.root}" includes="a-*.ad?.gcov"/>
+		<fileset dir="${local.root}" includes="s-*.ad?.gcov"/>
 		<fileset dir="${local.root}" includes="tartest.adb.*"/>
 		<fileset dir="${local.root}" includes="tartest.ali"/>
 		<fileset dir="${local.root}" includes="tartest.g*"/>

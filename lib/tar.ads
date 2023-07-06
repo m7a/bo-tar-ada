@@ -28,4 +28,7 @@ package Tar is
 	function "xor"(A, B: in U64) return U64     renames Interfaces."xor";
 	function "not"(   A: in U64) return U64     renames Interfaces."not";
 
+	function "**"(A: in U64; B: in Integer) return U64
+						renames Interfaces."**";
+
 end Tar;
