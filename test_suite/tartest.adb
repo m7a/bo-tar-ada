@@ -1,5 +1,3 @@
-with Ada.Assertions;
-use  Ada.Assertions;
 with Ada.Text_IO;
 use  Ada.Text_IO;
 with Ada.Streams;
@@ -18,6 +16,7 @@ with Ada.Exceptions;
 use  Ada.Exceptions;
 with Interfaces;
 with Interfaces.C;
+with References;
 
 procedure TarTest is
 
@@ -58,7 +57,7 @@ procedure TarTest is
 		Idx:    Integer := Result'First;
 	begin
 		for I in Bin'Range loop
-			Output_Formatter.Put(Hex, Bin(I));
+			Output_Formatter.Put(Hex, Bin(I), 16);
 			Result(Idx .. Idx + 1) :=
 				(if Hex(1) = ' ' then ("0" & Hex(5 .. 5))
 				else Hex(4 .. 5));
@@ -196,6 +195,177 @@ procedure TarTest is
 		end if;
 	end;
 
+	-- Test Special Files --
+	procedure Test_Case_Create_Tar_Of_Special_Files(FN: in String) is
+		FD: Ada.Streams.Stream_IO.File_Type;
+
+		procedure Add_Device_VHOST_VSOCK is
+			TE: Tar_Entry := Init_Entry("dev/vhost-vsock");
+		begin
+			TE.Set_Type(Char);
+			TE.Set_Access_Mode(8#0660#);
+			TE.Set_Modification_Time(1688917675);
+			TE.Set_Owner(0, 106);
+			TE.Set_Owner("root", "kvm");
+			TE.Set_Device(10, 241);
+			-- NOTE: GNU Tar generates explicit zeroes in these
+			--       fields. For comparison with GNU Tar outputs
+			--       it is thus useful to set them explicitly.
+			--       I am not sure if the standard really requires
+			--       this. If yes, it would be possible to add this
+			--       to the initialization of the USTAR header such
+			--       that zeroes are always present when no
+			--       explicit API call about setting the size is
+			--       performed.
+			TE.Set_Size(0);
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.End_Entry);
+		end Add_Device_VHOST_VSOCK;
+
+		procedure Add_Symlink_VMLINUZ is
+			TE: Tar_Entry := Init_Entry("vmlinuz");
+		begin
+			TE.Set_Type(Symlink);
+			-- Note: It is slightly unclear if this should probably
+			--       be set automatically by the library. For now,
+			--       we solve this by setting it explicitly from the
+			--       test.
+			TE.Set_Access_Mode(8#777#);
+			TE.Set_Modification_Time(1687643450);
+			TE.Set_Owner(0, 0);
+			TE.Set_Owner("root", "root");
+			TE.Set_Link_Target("boot/vmlinuz-6.1.0-9-amd64");
+			TE.Set_Size(0); -- See GNU Tar note above.
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.End_Entry);
+		end Add_Symlink_VMLINUZ;
+
+		procedure Add_Device_VDA is
+			TE: Tar_Entry := Init_Entry("dev/vda");
+		begin
+			TE.Set_Type(Block);
+			TE.Set_Access_Mode(8#0660#);
+			TE.Set_Modification_Time(1688917675);
+			TE.Set_Owner(0, 6);
+			TE.Set_Owner("root", "disk");
+			TE.Set_Device(254, 0);
+			TE.Set_Size(0); -- See GNU Tar note above.
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.End_Entry);
+		end Add_Device_VDA;
+
+		procedure Add_Dir_XATTRTEST is
+			TE: Tar_Entry := Init_Entry(
+					"home/linux-fan/wd/xattrtest/");
+		begin
+			TE.Set_Type(Directory);
+			TE.Set_Access_Mode(8#0755#);
+			TE.Set_Modification_Time(1688917956);
+			TE.Set_Owner(1000, 1000);
+			TE.Set_Owner("linux-fan", "linux-fan");
+			TE.Set_Size(0); -- See GNU Tar note above.
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.End_Entry);
+		end Add_Dir_XATTRTEST;
+
+		procedure Add_File_HELLOI is
+			TE: Tar_Entry := Init_Entry(
+				"home/linux-fan/wd/xattrtest/helloi.txt");
+			DT: constant Stream_Element_Array := (16#68#, 16#65#,
+						16#6c#, 16#6c#, 16#6f#, 16#0a#);
+		begin
+			TE.Set_Type(File);
+			TE.Set_Access_Mode(8#0644#);
+			TE.Set_Modification_Time(1688917887);
+			TE.Set_Owner(1000, 1000);
+			TE.Set_Owner("linux-fan", "linux-fan");
+			TE.Set_Size(DT'Length);
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.Add_Content(DT));
+			Write(FD, TE.End_Entry);
+		end Add_File_HELLOI;
+
+		procedure Add_File_TESTACL is
+			TE: Tar_Entry := Init_Entry(
+				"home/linux-fan/wd/xattrtest/testacl.txt");
+			DT: constant Stream_Element_Array := (16#74#, 16#65#,
+				16#73#, 16#74#, 16#61#, 16#63#, 16#6c#, 16#0a#);
+			XATTR: constant Stream_Element_Array :=
+				(16#02#, 16#00#, 16#00#, 16#00#, 16#01#, 16#00#,
+				 16#06#, 16#00#, 16#ff#, 16#ff#, 16#ff#, 16#ff#,
+				 16#02#, 16#00#, 16#04#, 16#00#, 16#21#, 16#00#,
+				 16#00#, 16#00#, 16#04#, 16#00#, 16#04#, 16#00#,
+				 16#ff#, 16#ff#, 16#ff#, 16#ff#, 16#10#, 16#00#,
+				 16#04#, 16#00#, 16#ff#, 16#ff#, 16#ff#, 16#ff#,
+				 16#20#, 16#00#, 16#04#, 16#00#, 16#ff#, 16#ff#,
+				 16#ff#, 16#ff#);
+			XSTR: String(1 .. XATTR'Length);
+			for XSTR'Address use XATTR'Address;
+		begin
+			TE.Set_Type(File);
+			TE.Set_Access_Mode(8#0644#);
+			TE.Set_Modification_Time(1688917957);
+			TE.Set_Owner(1000, 1000);
+			TE.Set_Owner("linux-fan", "linux-fan");
+			TE.Set_Size(DT'Length);
+			-- free-form entries are currently unsupported
+			--TE.Add_X_Attr("SCHILY.acl.access",
+			--	"user::rw-"         & ASCII.LF &
+			--	"user:www-data:r--" & ASCII.LF &
+			--	"group::r--"        & ASCII.LF &
+			--	"mask::r--"         & ASCII.LF &
+			--	"other::r--"        & ASCII.LF);
+			TE.Add_X_Attr("system.posix_acl_access", XSTR);
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.Add_Content(DT));
+			Write(FD, TE.End_Entry);
+		end Add_File_TESTACL;
+	begin
+		Create(FD, Out_File, FN);
+		Add_Device_VHOST_VSOCK;
+		Add_Symlink_VMLINUZ;
+		Add_Device_VDA;
+		Add_Dir_XATTRTEST;
+		Add_File_HELLOI;
+		Add_File_TESTACL;
+		Write(FD, End_Tar);
+		Close(FD);
+	end Test_Case_Create_Tar_Of_Special_Files;
+
+	procedure Check_Compare_Reference_Data(File: in String;
+				Reference_Data: in Stream_Element_Array) is
+		FD: Ada.Streams.Stream_IO.File_Type;
+		Pos: Stream_Element_Offset := Reference_Data'First;
+		Buf: Stream_Element_Array(0 .. 31);
+		Last: Stream_Element_Offset;
+		Max_R: Stream_Element_Offset;
+	begin
+		Open(FD, In_File, File);
+		while Pos <= Reference_Data'Last loop
+			Max_R := Stream_Element_Offset'Min(Reference_Data'Last -
+							Pos + 1, Buf'Length);
+			Read(FD, Buf(Buf'First .. Buf'First + Max_R - 1), Last);
+			if Buf(Buf'First .. Last) /= Reference_Data(Pos .. Pos +
+							(Last - Buf'First)) then
+				raise Test_Failure with
+					"Mismatch against reference data ref=<"
+					& Slow_Simple_To_Hex(Reference_Data(
+					Pos .. Pos + (Last - Buf'First))) &
+					" got=<" & Slow_Simple_To_Hex(
+					Buf(Buf'First .. Last)) & ">";
+			end if;
+			Pos := Pos + (Last - Buf'First + 1);
+		end loop;
+		Read(FD, Buf, Last);
+		if Last >= Buf'First then
+			raise Test_Failure with
+				"Generated TAR is larger than reference data" &
+				". Extra Data=<" & Slow_Simple_To_Hex(
+				Buf(Buf'First .. Last)) & ">";
+		end if;
+		Close(FD);
+	end;
+
 	-- Test USTAR Limits - Error Tests for file names --
 
 	generic
@@ -264,6 +434,15 @@ procedure TarTest is
 		Delete_File(Tar_File);
 	end Run_Test_Create_Large_File;
 
+	procedure Run_Test_Create_Tar_Of_Special_Files is
+		Tar_File: constant String := Compose(Tmp_Dir, "special.tar");
+	begin
+		Test_Case_Create_Tar_Of_Special_Files(Tar_File);
+		Check_Compare_Reference_Data(Tar_File,
+					References.Tar_Of_Special_Files);
+		Delete_File(Tar_File);
+	end Run_Test_Create_Tar_Of_Special_Files;
+
 	procedure Run_And_Print(Name: in String; TC: access procedure) is
 	begin
 		TC.all;
@@ -282,6 +461,8 @@ begin
 
 	Run_And_Print("create large path", Run_Test_Create_Large_Path'Access);
 	Run_And_Print("create large file", Run_Test_Create_Large_File'Access);
+	Run_And_Print("create tar of special files",
+				Run_Test_Create_Tar_Of_Special_Files'Access);
 	Run_And_Print("ustar fails for non-ascii file name",
 			Run_Test_USTAR_Limit_Non_ASCII_File_Name'Access);
 	Run_And_Print("ustar fails for basename > 155 chars in length",

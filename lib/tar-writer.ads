@@ -69,8 +69,7 @@ private
 	procedure Set_USTAR_Name(Ent: in out Tar_Entry; Name: in String;
 						Split_Info: in Integer);
 	procedure Add_USTAR_String(Ent: in out Tar_Entry; Val: in String;
-					Offset: in Stream_Element_Offset;
-					Length: in Stream_Element_Offset);
+					Offset: in Stream_Element_Offset);
 	procedure Set_Type_Raw(Ent: in out Tar_Entry; Raw: in Character);
 	function To_Octal(Val: in U64; Length: in Stream_Element_Offset;
 			Overflow: out Boolean) return Stream_Element_Array;

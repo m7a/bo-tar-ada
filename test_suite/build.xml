@@ -16,6 +16,7 @@
 <target name="cov">
 	<exec executable="gnatmake" failonerror="true">
 		<arg value="-Wall"/>
+		<arg value="-aI."/>
 		<arg value="-f"/>
 		<arg value="${local.root}/../lib/tar-writer.adb"/>
 		<arg value="${local.root}/tartest.adb"/>
@@ -54,9 +55,12 @@
 		<fileset dir="${local.root}" includes="s-*.ad?.gcov"/>
 		<fileset dir="${local.root}" includes="tartest.adb.*"/>
 		<fileset dir="${local.root}" includes="tartest.ali"/>
+		<fileset dir="${local.root}" includes="references.ali"/>
 		<fileset dir="${local.root}" includes="tartest.g*"/>
 		<fileset dir="${local.root}" includes="tartest.o"/>
+		<fileset dir="${local.root}" includes="references.o"/>
 		<fileset dir="${local.root}" includes="tartest"/>
+		<fileset dir="${local.root}" includes="*.gcno"/>
 	</delete>
 </target>
 

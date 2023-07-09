@@ -76,24 +76,21 @@ package body Tar.Writer is
 						Split_Info: in Integer) is
 	begin
 		if Name'Length <= USTAR_Length_Name then
-			Ent.Add_USTAR_String(Name, 0, Name'Length);
+			Ent.Add_USTAR_String(Name, 0);
 		else
 			Ent.Add_USTAR_String(Name(Name'First .. Split_Info - 1),
-				USTAR_Offset_Prefix,
-				Stream_Element_Offset(Split_Info - Name'First));
+							USTAR_Offset_Prefix);
 			Ent.Add_USTAR_String(Name(Split_Info + 1 .. Name'Last),
-				USTAR_Offset_Name,
-				Stream_Element_Offset(Name'Last - Split_Info));
+							USTAR_Offset_Name);
 		end if;
 	end Set_USTAR_Name;
 
 	procedure Add_USTAR_String(Ent: in out Tar_Entry; Val: in String;
-					Offset: in Stream_Element_Offset;
-					Length: in Stream_Element_Offset) is
+					Offset: in Stream_Element_Offset) is
 		Val_Raw: Stream_Element_Array(0 .. Val'Length - 1);
 		for Val_Raw'Address use Val'Address;
 	begin
-		Ent.USTAR(Offset .. Offset + Length - 1) := Val_Raw;
+		Ent.USTAR(Offset .. Offset + Val'Length - 1) := Val_Raw;
 	end Add_USTAR_String;
 
 	procedure Set_Type(Ent: in out Tar_Entry; Typ: in Tar_Entry_Type) is
@@ -130,11 +127,11 @@ package body Tar.Writer is
 			Overflow: out Boolean) return Stream_Element_Array is
 		Tbl: constant Stream_Element_Array(0 .. 7) :=
 					(Stream_Element(Character'Pos('0')),
-					 Stream_Element(Character'Pos('1')), 
+					 Stream_Element(Character'Pos('1')),
 					 Stream_Element(Character'Pos('2')),
-					 Stream_Element(Character'Pos('3')), 
+					 Stream_Element(Character'Pos('3')),
 					 Stream_Element(Character'Pos('4')),
-					 Stream_Element(Character'Pos('5')), 
+					 Stream_Element(Character'Pos('5')),
 					 Stream_Element(Character'Pos('6')),
 					 Stream_Element(Character'Pos('7')));
 		Edit: U64 := Val;
@@ -197,7 +194,7 @@ package body Tar.Writer is
 		return Buf;
 	end U64_To_Str;
 
-	function DLOG10(Num: in U64) return Natural is 
+	function DLOG10(Num: in U64) return Natural is
 		Edit:   U64     := Num;
 		Result: Natural := 1;
 	begin
@@ -235,12 +232,12 @@ package body Tar.Writer is
 			Length: in Stream_Element_Offset; Name: in String) is
 	begin
 		if Val'Length <= Length then
-			Ent.Add_USTAR_String(Val, Offset, Length); 
+			Ent.Add_USTAR_String(Val, Offset);
 		else
 			-- Add trunctaed value which is recommended per POSIX
 			Ent.Add_USTAR_String(Val(Val'First ..
 					Val'First + Integer(Length - 1)),
-					Offset, Length);
+					Offset);
 			-- It is debatable whether one should raise an exception
 			-- here. On the one hand side, the spec explicitly
 			-- says “truncate” in case it does not fit the field
@@ -259,11 +256,11 @@ package body Tar.Writer is
 	begin
 		Assert(Ent.S = Before_Header);
 		if Path_Is_Valid then
-			Ent.Add_USTAR_String(Target, 157, 100); 
+			Ent.Add_USTAR_String(Target, 157);
 		elsif Ent.Force_USTAR then
 			raise Not_Supported_In_Format with
 				"Link of " & Integer'Image(Target'Length) &
-				" bytes not representable in USTAR format."; 
+				" bytes not representable in USTAR format.";
 		else
 			Ent.PAX.Include("linkpath", Target);
 		end if;
@@ -380,7 +377,7 @@ package body Tar.Writer is
 	--
 	-- Say the order of magnitude of the size stays same, then the space
 	-- allocated for it is sufficient and no increase in space is needed.
-	-- 
+	--
 	-- Say the order of magnitude of the size increases, then in this case
 	-- it can only increase by 1.
 	--
@@ -445,9 +442,8 @@ package body Tar.Writer is
 			Lim_Rev(I) := (if Assoc_Char = '/'
 						then '.' else Assoc_Char);
 		end loop;
-		Ent.Add_USTAR_String(Lim_Rev, USTAR_Offset_Name,
-						Stream_Element_Offset(Use_Len));
-		Ent.Add_USTAR_String("paxhdr", USTAR_Offset_Prefix, 6);
+		Ent.Add_USTAR_String(Lim_Rev, USTAR_Offset_Name);
+		Ent.Add_USTAR_String("paxhdr", USTAR_Offset_Prefix);
 	end Set_USTAR_Compatible_File_Name;
 
 	function Get_Name(Ent: in Tar_Entry) return String is
