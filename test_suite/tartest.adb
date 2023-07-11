@@ -30,6 +30,9 @@ procedure TarTest is
 
 	Large_Test_Size: constant U64 := 9 * 1024 ** 3; -- 9 GiB
 
+	-- adjust to your platform if needed
+	Tmp_Dir: constant String := "/tmp/tartest";
+
 	--------------------------------------------------------[ Test Cases ]--
 
 	-- Test Create Large Path --
@@ -366,35 +369,26 @@ procedure TarTest is
 		Close(FD);
 	end;
 
-	-- Test USTAR Limits - Error Tests for file names --
-
-	generic
-		FN:   String;
-		Info: String;
-	procedure Run_Test_USTAR_Limit_Name;
-	procedure Run_Test_USTAR_Limit_Name is
-		Test_With_No_Limits: constant Tar_Entry := Init_Entry(FN);
+	-- Test PAX Length Computation
+	procedure Run_Test_PAX_Length_Computation is
+		-- eee path=XN i.e. we have given 3 + 1 + 5 + 1.
+		-- Use 993 bytes for path should give 993+6=999 initially
+		-- but w/ +3 exceed the 1000 mark.
+		Ent: Tar_Entry := Init_Entry("paxtest-" & ((989 - 8) * 'a'));
 	begin
 		declare
-			TE: constant Tar_Entry := Init_Entry(FN, True);
+			D1: Stream_Element_Array := Ent.Begin_Entry;
+			D2: Stream_Element_Array := Ent.End_Entry;
 		begin
-			raise Test_Failure with Info;
+			-- TODO CSTAT SMALL PROBLEM: CURRENTLY, THE RESULT ARCHIVE DOES NOT SEEM TO BE RESTORABLE? IT JUST COMES UP AS EMPTY IN TAR? ALSO IT DOES NOT SEEM TO TRIGGER THE CASE OF INTEREST
+			-- TODO ALSO RC: TEST THESE FIELDS W/ UNAME/GNAME ALLOWS CREATING TWO CASES (ONE W/ PAX AND ONE W USTAR AND BOTH MUST RESTORE THE FILE CONTENTS ALBEIT MAY DROP SOME OF THE USER/GROUP INFO!) -> as a separate test case!
+			Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D1));
+			Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D2));
+			Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(End_Tar));
 		end;
-	exception
-		when Ex: Tar.Writer.Not_Supported_In_Format => return; -- pass
-	end Run_Test_USTAR_Limit_Name;
+	end Run_Test_PAX_Length_Computation;
 
-	procedure Run_Test_USTAR_Limit_Non_ASCII_File_Name is new
-		Run_Test_USTAR_Limit_Name("ö", "Should fail to represent " &
-					"non-ASCII file name in USTAR mode");
-	procedure Run_Test_USTAR_Limit_Basename_Length is new
-		Run_Test_USTAR_Limit_Name("test/" & 32 * "long" & ".txt",
-				"Should fail to represent too long basename");
-	procedure Run_Test_USTAR_Limit_Filename_Length is new
-		Run_Test_USTAR_Limit_Name(60 * "test/" & "x.txt",
-				"Should fail to represent too long pathname");
-
-	--------------------------------------------[ Test Support Functions ]--
+	-- Test USTAR Limits - Error Tests for file names --
 
 	procedure Extract_Tar(File: in String; Output_Directory: in String;
 					Expected_Returncode: Integer := 0) is
@@ -411,8 +405,67 @@ procedure TarTest is
 		end if;
 	end Extract_Tar;
 
-	-- adjust to your platform if needed
-	Tmp_Dir: constant String := "/tmp/tartest";
+	procedure Run_Test_USTAR_Limit_Name(FN: in String;
+				Proposed_FN: in String; Msg: in String) is
+		Tar_File: constant String := Compose(Tmp_Dir, FN);
+		Lim_Dir:  constant String := Compose(Tmp_Dir, "testlim");
+		Ent_Name: constant String := "testlim/" & Proposed_FN;
+		TE: Tar_Entry := Init_Entry(Ent_Name);
+		FD: Ada.Streams.Stream_IO.File_Type;
+	begin
+		Create(FD, Out_File, Tar_File);
+		TE.Set_Access_Mode(8#644#);
+		Write(FD, TE.Begin_Entry);
+		Write(FD, TE.End_Entry);
+		Write(FD, End_Tar);
+		Close(FD);
+		
+		Extract_Tar(Tar_File, Tmp_Dir);
+
+		-- cannot use compose here since proposed fn may not be simple
+		if not Exists(Lim_Dir & "/" & Proposed_FN) then
+			raise Test_Failure with "Could not extract PAX variant";
+		end if;
+
+		Delete_Tree(Lim_Dir);
+		Delete_File(Tar_File);
+
+		begin
+			declare
+				Ignore_Entry: constant Tar_Entry :=
+						Init_Entry(Ent_Name, True);
+			begin
+				raise Test_Failure with Msg;
+			end;
+		exception
+			-- OK
+			when Ignore_Ex:
+				Tar.Writer.Not_Supported_In_Format => return;
+		end;
+	end Run_Test_USTAR_Limit_Name;
+
+	procedure Run_Test_USTAR_Limit_Non_ASCII_File_Name is
+	begin
+		Run_Test_USTAR_Limit_Name("testoe.tar", "ö",
+					"Should fail to represent " &
+					"non-ASCII file name in USTAR mode");
+	end Run_Test_USTAR_Limit_Non_ASCII_File_Name;
+
+	procedure Run_Test_USTAR_Limit_Basename_Length is
+	begin
+		Run_Test_USTAR_Limit_Name("testlong.tar",
+				"test/" & 32 * "long" & ".txt",
+				"Should fail to represent too long basename");
+	end Run_Test_USTAR_Limit_Basename_Length;
+
+	procedure Run_Test_USTAR_Limit_Filename_Length is
+	begin
+		Run_Test_USTAR_Limit_Name(
+				"testlong2.tar", 60 * "test/" & "x.txt",
+				"Should fail to represent too long pathname");
+	end Run_Test_USTAR_Limit_Filename_Length;
+
+	--------------------------------------------[ Test Support Functions ]--
 
 	procedure Run_Test_Create_Large_Path is
 		Tar_File: constant String := Compose(Tmp_Dir, "large.tar");
@@ -463,6 +516,8 @@ begin
 	Run_And_Print("create large file", Run_Test_Create_Large_File'Access);
 	Run_And_Print("create tar of special files",
 				Run_Test_Create_Tar_Of_Special_Files'Access);
+	Run_And_Print("trigger pax meta overflow logic",
+				Run_Test_PAX_Length_Computation'Access);
 	Run_And_Print("ustar fails for non-ascii file name",
 			Run_Test_USTAR_Limit_Non_ASCII_File_Name'Access);
 	Run_And_Print("ustar fails for basename > 155 chars in length",
