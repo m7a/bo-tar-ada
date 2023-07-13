@@ -53,17 +53,18 @@ procedure TarTest is
 
 	function Slow_Simple_To_Hex(Bin: in Stream_Element_Array)
 								return String is
-		package Output_Formatter is new Ada.Text_IO.Modular_IO(
-							Stream_Element);
-		Hex:    String := "16#00#";
+		function To_Hex(Num: in Stream_Element) return String is
+			Hex_Tbl: constant String := "0123456789abcdef";
+		begin
+			return (Hex_Tbl(Integer(Interfaces.Shift_Right(
+					Interfaces.Unsigned_32(Num), 4)) + 1),
+				Hex_Tbl(Integer(Num and 16#0f#)      + 1));
+		end To_Hex;
 		Result: String(1 .. Bin'Length * 2) := (others => '_');
 		Idx:    Integer := Result'First;
 	begin
 		for I in Bin'Range loop
-			Output_Formatter.Put(Hex, Bin(I), 16);
-			Result(Idx .. Idx + 1) :=
-				(if Hex(1) = ' ' then ("0" & Hex(5 .. 5))
-				else Hex(4 .. 5));
+			Result(Idx .. Idx + 1) := To_Hex(Bin(I));
 			Idx := Idx + 2;
 		end loop;
 		return Result;
@@ -371,20 +372,24 @@ procedure TarTest is
 
 	-- Test PAX Length Computation
 	procedure Run_Test_PAX_Length_Computation is
-		-- eee path=XN i.e. we have given 3 + 1 + 5 + 1.
-		-- Use 993 bytes for path should give 993+6=999 initially
-		-- but w/ +3 exceed the 1000 mark.
-		Ent: Tar_Entry := Init_Entry("paxtest-" & ((989 - 8) * 'a'));
+		Ent: Tar_Entry := Init_Entry("paxtest-x2" &
+							(98 * "/012345678"));
 	begin
 		declare
-			D1: Stream_Element_Array := Ent.Begin_Entry;
-			D2: Stream_Element_Array := Ent.End_Entry;
+			D1:    constant Stream_Element_Array := Ent.Begin_Entry;
+			D2:    constant Stream_Element_Array := Ent.End_Entry;
+			CMPD2: constant Stream_Element_Array(0 .. 511)
+							:= (others => 0);
 		begin
-			-- TODO CSTAT SMALL PROBLEM: CURRENTLY, THE RESULT ARCHIVE DOES NOT SEEM TO BE RESTORABLE? IT JUST COMES UP AS EMPTY IN TAR? ALSO IT DOES NOT SEEM TO TRIGGER THE CASE OF INTEREST
-			-- TODO ALSO RC: TEST THESE FIELDS W/ UNAME/GNAME ALLOWS CREATING TWO CASES (ONE W/ PAX AND ONE W USTAR AND BOTH MUST RESTORE THE FILE CONTENTS ALBEIT MAY DROP SOME OF THE USER/GROUP INFO!) -> as a separate test case!
-			Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D1));
-			Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D2));
-			Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(End_Tar));
+			-- Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D1));
+			-- Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D2));
+			if D1 /= References.Tar_Begin_Long_Metadata then
+				raise Test_Failure with "Long metadata " &
+						"mismatch with reference data";
+			end if;
+			if D2 /= CMPD2 then
+				raise Test_Failure with "Zero padding mismatch";
+			end if;
 		end;
 	end Run_Test_PAX_Length_Computation;
 

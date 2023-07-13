@@ -366,7 +366,7 @@ package body Tar.Writer is
 	-- There are multiple approaches to solve this. My idea is as follows:
 	-- I compute an A_Priori_Length which is the length except for size
 	-- info (e.g. 98). Then an A_Priori_Add which is the length needed to
-	-- representd that size i.e. A_Priori_Add = DLOG10(A_Priori_Length) e.g.
+	-- represent that size i.e. A_Priori_Add = DLOG10(A_Priori_Length) e.g.
 	-- = 2. Then I find out if I can use that size as-is by computing
 	-- Intermediate_Add = DLOG10(A_Priori_Length + A_Priori_Add) =
 	-- (e.g. = DLOG10(98 + 2) = 3). Now if this is unchanged to before it
