@@ -1,9 +1,9 @@
 with Ada.Text_IO;
-use  Ada.Text_IO;
 with Ada.Streams;
 use  Ada.Streams;
 with Ada.Streams.Stream_IO;
 use  Ada.Streams.Stream_IO;
+with Ada.Direct_IO;
 with Ada.Directories;
 use  Ada.Directories;
 with Ada.Strings.Fixed;
@@ -17,6 +17,8 @@ use  Ada.Exceptions;
 with Interfaces;
 with Interfaces.C;
 with References;
+
+-- TODO MISSING A SPECIAL TEST CASE (FOR COVERAGE) THAT HAS A 255 character long valid ustar file name but where a PAX extended record is generated. It may make sense to prepare this test using a long group name (instead of user name) and run twice once with PAX allowed and once with disallowed. The allowed one should then trigger this very special return line which is otherwise not reached :)
 
 procedure TarTest is
 
@@ -51,15 +53,16 @@ procedure TarTest is
 		Close(FD);
 	end Test_Case_Create_Large_Path;
 
+	function To_Hex(Num: in Stream_Element) return String is
+		Hex_Tbl: constant String := "0123456789abcdef";
+	begin
+		return (Hex_Tbl(Integer(Interfaces.Shift_Right(
+					Interfaces.Unsigned_32(Num), 4)) + 1),
+			Hex_Tbl(Integer(Num and 16#0f#)      + 1));
+	end To_Hex;
+
 	function Slow_Simple_To_Hex(Bin: in Stream_Element_Array)
 								return String is
-		function To_Hex(Num: in Stream_Element) return String is
-			Hex_Tbl: constant String := "0123456789abcdef";
-		begin
-			return (Hex_Tbl(Integer(Interfaces.Shift_Right(
-					Interfaces.Unsigned_32(Num), 4)) + 1),
-				Hex_Tbl(Integer(Num and 16#0f#)      + 1));
-		end To_Hex;
 		Result: String(1 .. Bin'Length * 2) := (others => '_');
 		Idx:    Integer := Result'First;
 	begin
@@ -159,6 +162,18 @@ procedure TarTest is
 		Write(FD, End_Tar);
 		Close(FD);
 	end Test_Case_Create_Large_File;
+
+	procedure Run_Test_Create_Large_File_Fails_In_USTAR is
+		TE: Tar_Entry := Init_Entry("largefile/random.bin", True);
+	begin
+		TE.Set_Type(File);
+		TE.Set_Access_Mode(8#664#);
+		TE.Set_Size(Large_Test_Size);
+		raise Test_Failure with "USTAR mode claimed to be able to " &
+			"process file of size " & U64'Image(Large_Test_Size);
+	exception
+		when Ignore_Ex: Tar.Writer.Not_Supported_In_Format => return;
+	end Run_Test_Create_Large_File_Fails_In_USTAR;
 
 	procedure Check_Large_File(Directory: in String) is
 		Check_Name: constant String := Compose(Compose(Directory,
@@ -370,7 +385,8 @@ procedure TarTest is
 		Close(FD);
 	end;
 
-	-- Test PAX Length Computation
+	-- Test PAX Length Computation --
+	-- TODO MIGHT SWITCH TO STORING THE FILE AND ACTUALLY COMPARING REFERENCE DATA!
 	procedure Run_Test_PAX_Length_Computation is
 		Ent: Tar_Entry := Init_Entry("paxtest-x2" &
 							(98 * "/012345678"));
@@ -378,7 +394,7 @@ procedure TarTest is
 		declare
 			D1:    constant Stream_Element_Array := Ent.Begin_Entry;
 			D2:    constant Stream_Element_Array := Ent.End_Entry;
-			CMPD2: constant Stream_Element_Array(0 .. 511)
+			CMPD2: constant Stream_Element_Array(1 .. 0)
 							:= (others => 0);
 		begin
 			-- Ada.Text_IO.Put_Line(Slow_Simple_To_Hex(D1));
@@ -388,13 +404,17 @@ procedure TarTest is
 						"mismatch with reference data";
 			end if;
 			if D2 /= CMPD2 then
-				raise Test_Failure with "Zero padding mismatch";
+				raise Test_Failure with
+					"Zero padding mismatch. D2L=" &
+					Stream_Element_Offset'Image(D2'Length) &
+					", CMPD2L=" &
+					Stream_Element_Offset'Image(
+					CMPD2'Length);
 			end if;
 		end;
 	end Run_Test_PAX_Length_Computation;
 
-	-- Test USTAR Limits - Error Tests for file names --
-
+	-- Test USTAR Split and UID/GID Truncation --
 	procedure Extract_Tar(File: in String; Output_Directory: in String;
 					Expected_Returncode: Integer := 0) is
 		function System(Arg: Interfaces.C.Char_Array) return Integer;
@@ -410,8 +430,91 @@ procedure TarTest is
 		end if;
 	end Extract_Tar;
 
+	procedure Test_Case_Parametrized_USTAR_Split(Tar_File: in String;
+			Is_USTAR: Boolean; Config_Char: in Character;
+			Read_Block: in Integer;
+			Reference_Block: in Stream_Element_Array) is
+
+		function Path_At_Depth(I: in Stream_Element;
+					BS0: in String := "") return String is
+			BS: String := Config_Char & "12345x__/";
+		begin
+			if I = 0 then
+				return BS0;
+			else
+				BS(8 .. 9) := To_Hex(I);
+				return Path_At_Depth(I - 1, BS & BS0);
+			end if;
+		end Path_At_Depth;
+
+		FD:       Ada.Streams.Stream_IO.File_Type;
+		Depth:    constant Stream_Element := 23;
+		Last_FN:  constant String  := Path_At_Depth(Depth) & "test.dat";
+	begin
+		Create(FD, Out_File, Tar_File);
+		for I in 1 .. Depth loop
+			declare
+				DNP: constant String := Path_At_Depth(I);
+				TE: Tar_Entry := Init_Entry(DNP(DNP'First ..
+						DNP'Last - 1), Is_USTAR);
+			begin
+				TE.Set_Type(Directory);
+				TE.Set_Access_Mode(8#755#);
+				Write(FD, TE.Begin_Entry);
+				Write(FD, TE.End_Entry);
+			end;
+		end loop;
+
+		declare
+			TE: Tar_Entry := Init_Entry(Last_FN, Is_USTAR);
+		begin
+			TE.Set_Access_Mode(8#644#);
+			-- user name exceeds 32 bytes size and should come out
+			-- as truncated!
+			TE.Set_Owner("0123456789abcdef-0123456789abcdef",
+								"simplegroup");
+			TE.Set_Size(3);
+			Write(FD, TE.Begin_Entry);
+			Write(FD, TE.Add_Content((16#30#, 16#31#, 16#0a#)));
+			Write(FD, TE.End_Entry);
+		end;
+		Write(FD, End_Tar);
+		Close(FD);
+		
+		Extract_Tar(Tar_File, Tmp_Dir);
+
+		if not Exists(Tmp_Dir & "/" & Last_FN) then
+			raise Test_Failure with "Could not long file name";
+		end if;
+
+		Delete_Tree(Compose(Tmp_Dir, Config_Char & "12345x01"));
+		
+		declare
+			subtype Tar_Record is Stream_Element_Array(0 .. 511);
+			package RIO is new Ada.Direct_IO(Tar_Record);
+			Record_Of_Interest: Tar_Record;
+			FD2: RIO.File_Type;
+		begin
+			RIO.Open(FD2, RIO.In_File, Tar_File);
+			RIO.Read(FD2, Record_Of_Interest,
+							RIO.Count(Read_Block));
+			RIO.Close(FD2);
+			if Record_Of_Interest /= Reference_Block then
+				raise Test_Failure with
+					"Record " & Integer'Image(Read_Block) &
+					" <" & Slow_Simple_To_Hex(
+					Record_Of_Interest) &
+					"> could not be detected to be the " &
+					"expected truncated group record <" &
+					Slow_Simple_To_Hex(Reference_Block) &
+					">.";
+			end if;
+		end;
+	end Test_Case_Parametrized_USTAR_Split;
+
+	-- Test USTAR Limits - Error Tests for file names --
 	procedure Run_Test_USTAR_Limit_Name(FN: in String;
-				Proposed_FN: in String; Msg: in String) is
+			Proposed_FN: in String; Msg: in String) is
 		Tar_File: constant String := Compose(Tmp_Dir, FN);
 		Lim_Dir:  constant String := Compose(Tmp_Dir, "testlim");
 		Ent_Name: constant String := "testlim/" & Proposed_FN;
@@ -470,6 +573,33 @@ procedure TarTest is
 				"Should fail to represent too long pathname");
 	end Run_Test_USTAR_Limit_Filename_Length;
 
+	-- TODO RUN THE SAME TEST WITH PAX AND COMPARE IT AGAINST REFERENCE DATA! (TEST EXTRACT BY HAND ONCE)
+	procedure Run_Test_USTAR_Limit_Link_Target_Length is
+		TE: Tar_Entry := Init_Entry("testlink", True);
+	begin
+		TE.Set_Type(Symlink);
+		TE.Set_Link_Target(12 * "/0123456678");
+		raise Test_Failure with "USTAR-mode claimed to be able to " &
+			"represent link target of 120 characters but should " &
+			"have failed since the format only supports 100 " &
+			"characters max for links";
+	exception
+		-- OK
+		when Ignore_Ex: Tar.Writer.Not_Supported_In_Format => return;
+	end Run_Test_USTAR_Limit_Link_Target_Length;
+
+	procedure Run_Test_USTAR_Limit_Extended_Attributes is
+		TE: Tar_Entry := Init_Entry("testxattr", True);
+	begin
+		TE.Add_X_Attr("system.posix_acl_access", "test");
+		raise Test_Failure with "USTAR-mode claimed to be able to " &
+			"store an extended attribute but that should be " &
+			"unsupported";
+	exception
+		-- OK
+		when Ignore_Ex: Tar.Writer.Not_Supported_In_Format => return;
+	end Run_Test_USTAR_Limit_Extended_Attributes;
+
 	--------------------------------------------[ Test Support Functions ]--
 
 	procedure Run_Test_Create_Large_Path is
@@ -501,6 +631,31 @@ procedure TarTest is
 		Delete_File(Tar_File);
 	end Run_Test_Create_Tar_Of_Special_Files;
 
+	procedure Run_Test_USTAR_Split is
+		Tar_File: constant String := Compose(Tmp_Dir, "split.tar");
+	begin
+		Test_Case_Parametrized_USTAR_Split(Tar_File, True, '0', 24, 
+					References.Truncated_Group_Record);
+		Delete_File(Tar_File);
+	end Run_Test_USTAR_Split;
+
+	procedure Run_Test_Long_User_Name is
+		Tar_File: constant String := Compose(Tmp_Dir, "lonuser.tar");
+		PAX_Group_Record: constant Stream_Element_Array(0 .. 511) := (
+			16#34#, 16#33#, 16#20#, 16#75#, 16#6e#, 16#61#, 16#6d#,
+			16#65#, 16#3d#, 16#30#, 16#31#, 16#32#, 16#33#, 16#34#,
+			16#35#, 16#36#, 16#37#, 16#38#, 16#39#, 16#61#, 16#62#,
+			16#63#, 16#64#, 16#65#, 16#66#, 16#2d#, 16#30#, 16#31#,
+			16#32#, 16#33#, 16#34#, 16#35#, 16#36#, 16#37#, 16#38#,
+			16#39#, 16#61#, 16#62#, 16#63#, 16#64#, 16#65#, 16#66#,
+			16#0a#, others => 0
+		);
+	begin
+		Test_Case_Parametrized_USTAR_Split(Tar_File, False, 'p', 25, 
+							PAX_Group_Record);
+		Delete_File(Tar_File);
+	end Run_Test_Long_User_Name;
+
 	procedure Run_And_Print(Name: in String; TC: access procedure) is
 	begin
 		TC.all;
@@ -519,16 +674,24 @@ begin
 
 	Run_And_Print("create large path", Run_Test_Create_Large_Path'Access);
 	Run_And_Print("create large file", Run_Test_Create_Large_File'Access);
+	Run_And_Print("create large file fails in ustar",
+			Run_Test_Create_Large_File_Fails_In_USTAR'Access);
 	Run_And_Print("create tar of special files",
 				Run_Test_Create_Tar_Of_Special_Files'Access);
 	Run_And_Print("trigger pax meta overflow logic",
 				Run_Test_PAX_Length_Computation'Access);
+	Run_And_Print("ustar split name", Run_Test_USTAR_Split'Access);
+	Run_And_Print("long user name", Run_Test_Long_User_Name'Access);
 	Run_And_Print("ustar fails for non-ascii file name",
 			Run_Test_USTAR_Limit_Non_ASCII_File_Name'Access);
 	Run_And_Print("ustar fails for basename > 155 chars in length",
 			Run_Test_USTAR_Limit_Basename_Length'Access);
 	Run_And_Print("ustar fails for file name > 255 chars in length",
 			Run_Test_USTAR_Limit_Filename_Length'Access);
+	Run_And_Print("ustar fails for link target > 100 chars in length",
+			Run_Test_USTAR_Limit_Link_Target_Length'Access);
+	Run_And_Print("ustar cannot represent extended attributes",
+			Run_Test_USTAR_Limit_Extended_Attributes'Access);
 
 	Delete_Tree(Tmp_Dir);
 
