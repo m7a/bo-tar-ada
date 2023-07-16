@@ -273,7 +273,7 @@ archive by the concatenation.
 Prepares a `Tar_Entry` from the entry name which is the path inside the
 archive. This may be an absolute path like e.g. `/tmp/test.txt` or a relative
 path like `lib/build.xml`. A slash must be used to separate the path components.
-The encoding must either be valid UTF-8.
+The encoding must be valid UTF-8.
 
 By default, the entry is created as a valid USTAR entry if the metadata
 can be represented in that format. If metadata exceeds the limits of USTAR,
