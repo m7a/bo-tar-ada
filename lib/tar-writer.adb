@@ -54,7 +54,7 @@ package body Tar.Writer is
 		end loop;
 
 		if Has_Valid_Split and then Stream_Element_Offset(Name'Last -
-				Valid_Split + 1) <= USTAR_Length_Name then
+					Valid_Split) <= USTAR_Length_Name then
 			Split_Info := Valid_Split;
 			return True;
 		else
@@ -314,7 +314,7 @@ package body Tar.Writer is
 						return Stream_Element_Array is
 		Extended_Header_Data: constant Stream_Element_Array :=
 					Ent.Serialize_PAX_Extended_Header_Data;
-		Prefix_Ent: Tar_Entry := Init_Entry("pax-metadata", True);
+		Prefix_Ent: Tar_Entry := Init_Entry("", True);
 	begin
 		Prefix_Ent.Set_Size(Extended_Header_Data'Length);
 		Prefix_Ent.Set_Type_Raw('x');
@@ -457,7 +457,7 @@ package body Tar.Writer is
 					USTAR_Offset_Name +
 					USTAR_Length_Name - 1));
 			begin
-				return (if Ent.USTAR(Ustar_Offset_Prefix) /= 0
+				return (if Ent.USTAR(USTAR_Offset_Prefix) /= 0
 					then (C_String_To_Ada(Ent.USTAR(
 						USTAR_Offset_Prefix ..
 						USTAR_Offset_Prefix +
@@ -476,7 +476,7 @@ package body Tar.Writer is
 	begin
 		for I in S'Range loop
 			if S(I) = 0 then
-				return SS(1 .. Integer(1 + I - S'First));
+				return SS(1 .. Integer(I - S'First));
 			end if;
 		end loop;
 		return SS;

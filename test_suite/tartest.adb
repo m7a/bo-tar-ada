@@ -386,7 +386,6 @@ procedure TarTest is
 	end;
 
 	-- Test PAX Length Computation --
-	-- TODO MIGHT SWITCH TO STORING THE FILE AND ACTUALLY COMPARING REFERENCE DATA!
 	procedure Run_Test_PAX_Length_Computation is
 		Ent: Tar_Entry := Init_Entry("paxtest-x2" &
 							(98 * "/012345678"));
@@ -512,6 +511,84 @@ procedure TarTest is
 		end;
 	end Test_Case_Parametrized_USTAR_Split;
 
+	-- Test Long Group Names --
+	procedure Run_Test_Long_Group_Name is
+		function Create_Long_Group_Entry(Force_USTAR: Boolean)
+							return Tar_Entry is
+		begin
+			return TE: Tar_Entry := Init_Entry((155 / 5) * "test/" &
+					10 * "0123456789", Force_USTAR) do
+				TE.Set_Access_Mode(8#644#);
+				TE.Set_Owner("simpleuser",
+					"0123456789abcdef-0123456789abcdef");
+			end return;
+		end Create_Long_Group_Entry;
+
+		Ent_PAX: Tar_Entry := Create_Long_Group_Entry(False);
+		Ent_TAR: Tar_Entry := Create_Long_Group_Entry(True);
+		HDR_PAX: constant Stream_Element_Array := Ent_PAX.Begin_Entry;
+		HDR_TAR: constant Stream_Element_Array := Ent_TAR.Begin_Entry;
+	begin
+		if HDR_PAX /= References.Long_Group_Name_PAX then
+			raise Test_Failure with
+				"Mismatching PAX header generated for long " &
+				"group name. Expected=<" & Slow_Simple_To_Hex(
+				References.Long_Group_Name_PAX) & ">, Got=<" &
+				Slow_Simple_To_Hex(HDR_PAX) & ">";
+		end if;
+		if HDR_TAR /= References.Long_Group_Name_USTAR then
+			raise Test_Failure with
+				"Mismatching USTAR header generated for long " &
+				"group name. Expected=<" & Slow_Simple_To_Hex(
+				References.Long_Group_Name_USTAR) & ", Got=<" &
+				Slow_Simple_To_Hex(HDR_TAR) & ">";
+		end if;
+	end Run_Test_Long_Group_Name;
+
+	-- Test Long Link Target Names --
+	procedure Run_Test_Long_Link is
+		function Create_Long_Link_Entry(Force_USTAR: Boolean)
+							return Tar_Entry is
+		begin
+			return TE: Tar_Entry := Init_Entry("testlink",
+								Force_USTAR) do
+				TE.Set_Type(Symlink);
+				TE.Set_Access_Mode(8#777#);
+				TE.Set_Link_Target(12 * "/0123456678");
+			end return;
+		end Create_Long_Link_Entry;
+
+		OK_TE: Tar_Entry := Create_Long_Link_Entry(False);
+		HDR: constant Stream_Element_Array := OK_TE.Begin_Entry;
+	begin
+		if HDR /= References.Long_Link_PAX_Prefix then
+			raise Test_Failure with
+				"PAX Header generated for long link data " &
+				"does not match reference. Expected=<" &
+				Slow_Simple_To_Hex(
+				References.Long_Link_PAX_Prefix) & ">, Got=<" &
+				Slow_Simple_To_Hex(HDR) & ">";
+		end if;
+
+		begin
+			declare
+				Ignore_TE: constant Tar_Entry :=
+						Create_Long_Link_Entry(True);
+			begin
+				raise Test_Failure with
+					"USTAR-mode claimed to be able to " &
+					"represent link target of 120 " &
+					"characters but should have failed " &
+					"since the format only supports 100 " &
+					"characters max for links";
+			end;
+		exception
+			-- OK
+			when Ignore_Ex: Tar.Writer.Not_Supported_In_Format =>
+									return;
+		end;
+	end Run_Test_Long_Link;
+
 	-- Test USTAR Limits - Error Tests for file names --
 	procedure Run_Test_USTAR_Limit_Name(FN: in String;
 			Proposed_FN: in String; Msg: in String) is
@@ -573,21 +650,6 @@ procedure TarTest is
 				"Should fail to represent too long pathname");
 	end Run_Test_USTAR_Limit_Filename_Length;
 
-	-- TODO RUN THE SAME TEST WITH PAX AND COMPARE IT AGAINST REFERENCE DATA! (TEST EXTRACT BY HAND ONCE)
-	procedure Run_Test_USTAR_Limit_Link_Target_Length is
-		TE: Tar_Entry := Init_Entry("testlink", True);
-	begin
-		TE.Set_Type(Symlink);
-		TE.Set_Link_Target(12 * "/0123456678");
-		raise Test_Failure with "USTAR-mode claimed to be able to " &
-			"represent link target of 120 characters but should " &
-			"have failed since the format only supports 100 " &
-			"characters max for links";
-	exception
-		-- OK
-		when Ignore_Ex: Tar.Writer.Not_Supported_In_Format => return;
-	end Run_Test_USTAR_Limit_Link_Target_Length;
-
 	procedure Run_Test_USTAR_Limit_Extended_Attributes is
 		TE: Tar_Entry := Init_Entry("testxattr", True);
 	begin
@@ -635,12 +697,12 @@ procedure TarTest is
 		Tar_File: constant String := Compose(Tmp_Dir, "split.tar");
 	begin
 		Test_Case_Parametrized_USTAR_Split(Tar_File, True, '0', 24, 
-					References.Truncated_Group_Record);
+					References.Truncated_User_Record);
 		Delete_File(Tar_File);
 	end Run_Test_USTAR_Split;
 
 	procedure Run_Test_Long_User_Name is
-		Tar_File: constant String := Compose(Tmp_Dir, "lonuser.tar");
+		Tar_File: constant String := Compose(Tmp_Dir, "longuser.tar");
 		PAX_Group_Record: constant Stream_Element_Array(0 .. 511) := (
 			16#34#, 16#33#, 16#20#, 16#75#, 16#6e#, 16#61#, 16#6d#,
 			16#65#, 16#3d#, 16#30#, 16#31#, 16#32#, 16#33#, 16#34#,
@@ -682,14 +744,14 @@ begin
 				Run_Test_PAX_Length_Computation'Access);
 	Run_And_Print("ustar split name", Run_Test_USTAR_Split'Access);
 	Run_And_Print("long user name", Run_Test_Long_User_Name'Access);
+	Run_And_Print("long group name", Run_Test_Long_Group_Name'Access);
+	Run_And_Print("long link targets", Run_Test_Long_Link'Access);
 	Run_And_Print("ustar fails for non-ascii file name",
 			Run_Test_USTAR_Limit_Non_ASCII_File_Name'Access);
 	Run_And_Print("ustar fails for basename > 155 chars in length",
 			Run_Test_USTAR_Limit_Basename_Length'Access);
 	Run_And_Print("ustar fails for file name > 255 chars in length",
 			Run_Test_USTAR_Limit_Filename_Length'Access);
-	Run_And_Print("ustar fails for link target > 100 chars in length",
-			Run_Test_USTAR_Limit_Link_Target_Length'Access);
 	Run_And_Print("ustar cannot represent extended attributes",
 			Run_Test_USTAR_Limit_Extended_Attributes'Access);
 
