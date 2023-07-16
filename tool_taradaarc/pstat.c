@@ -31,13 +31,14 @@ enum file_type {
 #ifdef _WIN32
 /* --------------------------------------------------------[ Windows Code ]-- */
 
-/* TODO SKELETON ONLY */
+#warning "WINDOWS COMPILATION DETECTED - THIS IS CURRENTLY A SKELETON ONLY. DISABLE THE USE OF PSTAT OR SUPPLY A PATCH TO IMPLEMENT THE MISSING FUNCTIONS. SEE FILE pstat.c FOR DETAILS"
+
 int pstat(const char *in_path, unsigned *out_mode, unsigned long *out_uid,
 				unsigned long *out_gid, unsigned *out_major,
 				unsigned *out_minor, unsigned long *out_size,
 				unsigned long *out_mtime, unsigned *out_ftype)
 {
-	return -1; /* unsupported means unsupported */
+	return -1;
 }
 
 long readlink(const char *in_path, char *out_buf, size_t in_bufsize)

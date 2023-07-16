@@ -23,7 +23,7 @@ streaming them to any target. As a result, this API does not currently provide
 any “file”-centric calls, i.e. there is no way to add a file from the file
 system to a Tar archive.
 
-Instead, the API cernters around creating entries -- think of e.g. a single
+Instead, the API centers around creating entries -- think of e.g. a single
 file -- and formatting their metadata and data such that they become valid
 Tar blocks that can be streamed.
 
@@ -40,8 +40,8 @@ The library supports two output formats:
 Both formats are interpreted as specified by POSIX aka.
 _the Open Group Base Specifications Issue 7, 2018 edition_.
 
-The entire library works under the assumtion that `Stream_Element` is a byte of
-8 bits.
+The entire library works under the assumption that a `Stream_Element` is a byte
+of 8 bits.
 
 License
 =======
@@ -89,8 +89,6 @@ Repository Structure
 
 The repsitory file structure is as follows:
 
-_TODO INCOMPLETE_
-
 ~~~
 bo-tar-ada/
    │
@@ -100,16 +98,21 @@ bo-tar-ada/
    │    ├── tar.ads
    │    └── build.xml
    │
+   ├── test_suite/                    Various test cases to check some basic
+   │    ├── tartest.adb               library functions. Can run coverage tests
+   │    ├── references.ads            by using `ant cov` on Linux systems.
+   │    └── build.xml
+   │
    ├── tool_taradaarc/                Minimal example of an “archiver”
    │    ├── build.xml                 program that can be used to create TAR
    │    ├── metadata.adb              archives out of file system trees. It
-   │    ├── metadata.ads              demonstrates the usage of the library for
+   │    ├── metadata.ads              demonstrates the usage of the library in
    │    ├── pstat.c                   a non-trivial use-case.
    │    └── taradaarc.adb
    │
-   ├── tool_taradahello/
+   ├── tool_taradahello/              “Hello World” example using this library
    │    ├── build.xml
-   │    └── taradahello.adb           “Hello World” example using this library
+   │    └── taradahello.adb
    │
    ├── README.md                      This file
    ├── debian-changelog.txt           Changelog information for .deb build
@@ -161,7 +164,7 @@ The program creates a tar archive with a single file entry (no directory) and
 name `hello.txt` with the traditional content of `Hello, world.` followed by
 a newline. The tar data is directly sent to the standard output in this example.
 
-If you are intrested in a more complex example, check the files under
+If you are interested in a more complex example, check the files under
 `tool_taradaarc` especially `tool_taradaarc/taradaarc.adb` which implements
 an archiver that traverses file system trees and then writes the data to
 stdout as .tar files.
@@ -169,11 +172,19 @@ stdout as .tar files.
 Using the Library
 =================
 
-_TODO MISSING CONTENT IN THIS SECTION_
+Assuming the library is already installed on your system, you can compile and
+run the example program from subdirectory `tool_taradahello` as follows:
 
-## Installed
+	gnatmake -o taradahello taradahello.adb \
+		-aO/usr/lib/x86_64-linux-gnu/ada/adalib/tar \
+		-aI/usr/share/ada/adainclude/tar -largs -ltarada
+	./taradahello | tar -tv
 
-## Without Installation
+Output: `-rw-r--r-T 1000/1000        14 1970-01-01 01:00 hello.txt`
+
+Alternatively, you can provide the path to the sources during compilation
+such that the library is statically linked. See the `build.xml` files in this
+repository for some examples about how to approach this.
 
 Tar Datatypes (`tar.ads`)
 =========================
@@ -199,7 +210,7 @@ processing.
    for device node entries. It consists of all non-negative decimal numbers up
    to 7 digits.
  * `Access_Mode` is a modular type representing the supported file modes.
-   It consists of all non-negative ocatl numbers up to 7 digits.
+   It consists of all non-negative octal numbers up to 7 digits.
  * `Tar_Entry_Type` distinguishes the various kinds of entries that Tar data
    can represent.
 
@@ -264,7 +275,7 @@ archive. This may be an absolute path like e.g. `/tmp/test.txt` or a relative
 path like `lib/build.xml`. A slash must be used to separate the path components.
 The encoding must either be valid UTF-8.
 
-By default, the entry is created as a valid USTAR entry if the metdata
+By default, the entry is created as a valid USTAR entry if the metadata
 can be represented in that format. If metadata exceeds the limits of USTAR,
 a _PAX Extended Header_ is automatically created as necessary. This behavior can
 be disabled by setting `Force_USTAR_Format := True`. In this case, instead of
@@ -285,9 +296,9 @@ The `Begin_` routines must not have been called on the same entry before.
 ### `Set_Type(Ent; Typ: in Tar_Entry_Type)`
 
 This procedure defines what kind of entry is to be produced. Most of the
-enum values directly correspond to the classic unix file types.
+enumeration values directly correspond to the classic UNIX file types.
 
-There is one pecuilarity: The `Hardlink` type can be used to create links to
+There is one peculiarity: The `Hardlink` type can be used to create links to
 existing entries from the same Tar as follows:
 
  * The entry's size must be set to 0.
@@ -304,7 +315,7 @@ its owner and read by all other groups and users.
 
 ### `Set_Size(Ent; SZ: in U64)`
 
-This procedure defines the data sizeo of the entry to be created in bytes.
+This procedure defines the data size of the entry to be created in bytes.
 
 It is recommended to call this procedure at least once for each entry.
 
@@ -345,7 +356,7 @@ This procedure defines the target of a symlink or a hardlink.
 If the entry to be created corresponds to a device node, this procedure sets
 the associated `Major` and `Minor` numbers.
 
-Note: While PAX could represent arbitrarily long numbes here, this
+Note: While PAX could represent arbitrarily long numbers here, this
 implementation limits the device node major and minor numbers to the limits
 defined for USTAR since that seems to cover all practical use cases already.
 
@@ -393,14 +404,72 @@ archive marker which is a fancy way of getting 1 KiB of zero bytes btw.
 Performance
 ===========
 
-_TODO NEED TO CREATE A BENCHMARK FIRST MAYBE WRITE A LITTLE ARCHIVER?_
+This library has not been extensively optimized for performance. One can use
+the example `taradaarc` to do some very basic performance tests, though.
+
+Using a small test set of 2166 MiB and with 65685 entries, the following timings
+are obtained by `taradaarc` and GNU tar (version 1.34 as shipped by Debian
+Bookworm). These benchmarks run on a ramdisk.
+
+~~~
+$ hyperfine "tar -c /tmp/testset | dd of=/dev/null bs=1M"
+Benchmark 1: tar -c /tmp/testset | dd of=/dev/null bs=1M
+  Time (mean ± σ):      1.103 s ±  0.060 s    [User: 0.116 s, System: 1.763 s]
+  Range (min … max):    1.048 s …  1.260 s    10 runs
+
+$ hyperfine "taradaarc /tmp/testset | dd of=/dev/null bs=1M"
+Benchmark 1: taradaarc /tmp/testset | dd of=/dev/null bs=1M
+  Time (mean ± σ):      1.665 s ±  0.082 s    [User: 0.370 s, System: 2.116 s]
+  Range (min … max):    1.600 s …  1.881 s    10 runs
+~~~
+
+That means GNU tar achieves 1964 MiB/s and taradaarc using the library achieves
+1301 MiB/s of throughput which is significantly slower but probably OK for many
+practical use cases.
 
 Rationale and Usage Recommendation
 ==================================
 
-_TODO MISSING SECTION_
+This library's API is opinionated in that it does not supply standard “archiver”
+functionality like adding files by a path and having them read from disk
+automatically. Hence it may not be well-suited in cases where a TAR library is
+required as a replacement for calling the `tar` command on the system. It has
+rather been designed as a sort of portable file system abstraction because tar
+files can contain many of UNIX' special file types and attributes even on
+operating systems which do not support them natively. If you are developing an
+application where output files need to be written in a UNIX-specific format but
+that is intended to run on other platforms, too, you could consider using this
+library for output and then filtering the output of your application through
+`tar -x`. On UNIX platforms this recreates all of the attributes as far as
+possible (i.e. as limited by the running user's capabilities) whereas on other
+platforms (like e.g. Windows) it mostly gracefully degrades to what can be
+represented there.
 
-Changes
-=======
+This library has not been tested for compatibility with a wide range of
+implementations. Instead, it was implemented based on reading the specification
+and then validating that it works with GNU tar. Depending on your use case this
+may be acceptable or additional validation and integration testing may be
+required.
 
-_TODO MISSING SECTION_
+The library is designed to minimize memory allocations while still staying
+reasonably “easy” to use. Effectively the only place where unbounded amounts
+of memory are needed is the `Indefinite_Ordered_Map` for constructing PAX
+extended headers. If you enable USTAR mode, this map is not populated and
+always remains an `Empty_Map` which effectively removes the need for dynamic
+memory allocation.
+
+Future Directions
+=================
+
+The test suite is a mess, it would benefit from being refactored and probably
+from moving to a dedicated “test framework” or such. Also, if the library ever
+gains support for reading archives, it is going to be much easier to perform
+some tests...
+
+Feel free to send patches with bugfixes or missing functionality directly to
+<info@masysma.net>. Include a note to confirm that you are OK with these
+patches being included under GPL-3 or later license and add your preferred
+copyright line to the patch or e-mail.
+
+Please note that API breaks are only accepted if _good reasons_ exist to
+motivate them.

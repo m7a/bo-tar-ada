@@ -18,8 +18,6 @@ with Interfaces;
 with Interfaces.C;
 with References;
 
--- TODO MISSING A SPECIAL TEST CASE (FOR COVERAGE) THAT HAS A 255 character long valid ustar file name but where a PAX extended record is generated. It may make sense to prepare this test using a long group name (instead of user name) and run twice once with PAX allowed and once with disallowed. The allowed one should then trigger this very special return line which is otherwise not reached :)
-
 procedure TarTest is
 
 	pragma Assertion_Policy(Pre => Check, Post => Check);

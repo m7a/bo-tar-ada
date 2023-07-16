@@ -32,7 +32,8 @@ procedure TarAdaArc is
 							FN: in String) is
 		use type Ada.Streams.Stream_Element_Offset;
 		FD: Ada.Streams.Stream_IO.File_Type;
-		Buf: Ada.Streams.Stream_Element_Array(0 .. 1023);
+		-- 20k buffer is pretty fast on my machine
+		Buf: Ada.Streams.Stream_Element_Array(0 .. (20480 - 1));
 		Last: Ada.Streams.Stream_Element_Offset;
 	begin
 		Ada.Streams.Stream_IO.Open(FD,
@@ -64,13 +65,12 @@ procedure TarAdaArc is
 
 	procedure Add_File(Item: in Ada.Directories.Directory_Entry_Type) is
 		BN: constant String := Ada.Directories.Simple_Name(Item);
-		FN: constant String := Ada.Directories.Full_Name(Item);
 	begin
 		-- On Unix systems, these entries belong to the "other"
 		-- category and are hence detected here, even though we mean
 		-- to include only "file-like" tiems.
 		if BN /= "." and BN /= ".." then
-			Add_File_Inner(FN,
+			Add_File_Inner(Ada.Directories.Full_Name(Item),
 					Ada.Directories.Modification_Time(Item),
 					Tar.U64(Ada.Directories.Size(Item)));
 		end if;
