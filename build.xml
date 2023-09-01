@@ -22,9 +22,7 @@ tool_taradaarc/taradaarc /usr/bin
 </property>
 
 <!-- CI INTEGRATION -->
-<target name="package_triggered" depends="package">
-	<property name="masysma.ci.trigger" value="newver"/>
-</target>
+<target name="autoci" depends="autopackage"/>
 
 <!-- CONSTANT TPL IMPORT -->
 <property environment="env"/>
